@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mastermind</title>
+  <script>
+    // Apply a saved theme before first paint to avoid a flash of the wrong colors.
+    // Keep the key and values in sync with THEME_KEY / THEMES in script.js.
+    try {
+      var t = localStorage.getItem("mastermind.theme.v1");
+      if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    } catch (e) { /* storage unavailable: script.js falls back to the welcome screen */ }
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- First-visit theme picker. script.js shows it only when no theme is saved. -->
+  <section id="welcome" class="welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title" hidden>
+    <div class="welcome-card">
+      <h1 id="welcome-title">Mastermind</h1>
+      <p>Crack the secret code. Choose a look to get started; you can change it any time.</p>
+      <div class="welcome-choices">
+        <button type="button" class="theme-choice theme-choice-light" data-theme-choice="light">
+          <span aria-hidden="true">&#9728;</span> Light
+        </button>
+        <button type="button" class="theme-choice theme-choice-dark" data-theme-choice="dark">
+          <span aria-hidden="true">&#9790;</span> Dark
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <div id="app" hidden>
+    <header class="app-header">
+      <h1>Mastermind</h1>
+      <div class="header-actions">
+        <button id="theme-toggle" type="button"></button>
+        <button id="new-game" type="button">New game</button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <div class="toolbar">
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty"></select>
+        <span id="difficulty-info" class="toolbar-info"></span>
+      </div>
+
+      <div class="status-row">
+        <span class="timer">Time <span id="timer">0:00</span></span>
+        <div class="status-actions">
+          <button id="open-help" type="button">How to play</button>
+          <button id="open-leaderboard" type="button">Leaderboard</button>
+        </div>
+      </div>
+
+      <p id="message" class="message" role="status" aria-live="polite"></p>
+
+      <!-- Shrinks to the code length (pegs + feedback) and is centered; the secret
+           row sits inside it so it lines up over the guess columns. -->
+      <div class="play-area">
+        <section aria-label="Secret code" class="secret-wrap">
+          <div id="secret" class="row secret-row" aria-label="Secret code"></div>
+        </section>
+
+        <section aria-label="Game board">
+          <div id="board" class="board"></div>
+        </section>
+      </div>
+
+      <section id="controls" aria-label="Controls" class="controls">
+        <div id="palette" class="palette" role="group" aria-label="Pick a color"></div>
+        <div class="buttons">
+          <button id="undo" type="button">Undo<span class="kbd-label"> (Backspace)</span></button>
+          <button id="clear" type="button">Clear row</button>
+          <button id="hint" type="button"></button>
+          <button id="submit" type="button" class="primary">Submit<span class="kbd-label"> (Enter)</span></button>
+        </div>
+      </section>
+
+      <section aria-label="Statistics" class="stats">
+        <h2>Stats</h2>
+        <dl id="stats"></dl>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="help-dialog" class="dialog" aria-labelledby="help-title">
+    <div class="dialog-head">
+      <h2 id="help-title">How to play</h2>
+      <button id="help-close" type="button">Close</button>
+    </div>
+    <div class="help-body">
+      <p>The computer hides a secret code of colored pegs. Work out the code before you run out of guesses. A color can appear more than once.</p>
+
+      <h3>Making a guess</h3>
+      <ol>
+        <li>Click a color below the board, then click a slot in the highlighted row. You can also press the number keys 1&ndash;6 to fill the next empty slot.</li>
+        <li>Click a filled slot (with no color selected) to empty it. Backspace removes the last peg you placed.</li>
+        <li>When every slot is filled, press Submit or Enter.</li>
+      </ol>
+
+      <h3>Reading the feedback</h3>
+      <ul class="help-plain">
+        <li><span class="help-peg exact" aria-hidden="true"></span><strong>Black peg:</strong> a right color in the right slot.</li>
+        <li><span class="help-peg color" aria-hidden="true"></span><strong>White peg:</strong> a right color in the wrong slot.</li>
+      </ul>
+      <p>The feedback pegs don&rsquo;t say which slot they belong to. The text next to each row gives the same counts in words.</p>
+
+      <h3>Colors and keys</h3>
+      <p>Every color also has its own symbol, so you never have to rely on color alone.</p>
+      <ul id="help-colors" class="help-plain help-colors"></ul>
+
+      <h3>Difficulty</h3>
+      <ul id="help-levels" class="help-plain"></ul>
+
+      <h3>Hints</h3>
+      <p>A hint fills one slot in your current row with the correct color and locks it. That peg stays in place on later guesses. A hint never reveals the whole code.</p>
+
+      <h3>Score</h3>
+      <p>The timer starts when you place your first peg and stops when the game ends. Wins are ranked by fewest guesses, then fewest hints, then fastest time.</p>
+    </div>
+  </dialog>
+
+  <!-- Shown after a win so the player can put a name on their score. -->
+  <dialog id="name-dialog" class="dialog" aria-labelledby="name-title">
+    <form id="name-form">
+      <h2 id="name-title">You cracked the code!</h2>
+      <p id="name-summary" class="dialog-text"></p>
+      <label class="field">
+        Your name
+        <input id="player-name" type="text" maxlength="12" autocomplete="off" placeholder="Up to 12 characters">
+      </label>
+      <div class="dialog-actions">
+        <button id="name-skip" type="button">Skip</button>
+        <button type="submit" class="primary">Save score</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="leaderboard-dialog" class="dialog" aria-labelledby="lb-title">
+    <div class="dialog-head">
+      <h2 id="lb-title">Leaderboard</h2>
+      <button id="lb-close" type="button">Close</button>
+    </div>
+    <div id="lb-tabs" class="lb-tabs" role="group" aria-label="Difficulty"></div>
+    <p id="lb-note" class="dialog-text" role="status"></p>
+    <div id="lb-scroll" class="lb-scroll">
+      <table class="lb-table">
+        <thead>
+          <tr>
+            <th scope="col">#</th>
+            <th scope="col">Name</th>
+            <th scope="col">Guess</th>
+            <th scope="col">Hints</th>
+            <th scope="col">Time</th>
+            <th scope="col" class="col-date">Date</th>
+          </tr>
+        </thead>
+        <tbody id="lb-body"></tbody>
+      </table>
+    </div>
+    <p id="lb-empty" class="dialog-text" hidden>No scores yet. Win a game to get on the board.</p>
+    <div class="dialog-actions">
+      <button id="lb-reset" type="button">Reset this board</button>
+    </div>
+  </dialog>
+
+  <script src="script.js"></script>
+</body>
+</html>

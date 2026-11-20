@@ -1,0 +1,398 @@
+/* Theme variables. script.js sets data-theme on <html>; light is the default
+   (also used on the welcome screen before a choice is made). */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f6f6f3;
+  --surface: #ffffff;
+  --text: #1c1c1e;
+  --muted: #6b6b70;
+  --border: #c9c9cf;
+  --accent: #2f5fd0;
+  --on-accent: #ffffff;
+  --slot-bg: #e9e9ee;
+  /* --border is for dividers only; --control-border outlines things you click or type in (3:1). */
+  --control-border: #7b7b83;
+  --peg-border: #5a5a62;
+  --secret-bg: #555555;
+  --secret-fg: #ffffff;
+
+  --c-BYU: #0047BA;
+  --c-orange: #f08a00;
+  --c-yellow: #f2c200;
+  --c-green: #2e9d4a;
+  --c-blue: #7dafff;
+  --c-purple: #9000bc;
+
+  /* Symbol color on each peg (4.5:1): white where it reads, near-black where it doesn't. */
+  --c-red-fg: #ffffff;
+  --c-orange-fg: #111111;
+  --c-yellow-fg: #111111;
+  --c-green-fg: #111111;
+  --c-blue-fg: #ffffff;
+  --c-purple-fg: #ffffff;
+
+  --fb-exact: #111111;
+  --fb-color: #ffffff;
+  --fb-empty: #d4d4da;
+  --fb-border: #6a6a72;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #131417;
+  --surface: #1f2126;
+  --text: #ececf0;
+  --muted: #a3a5ae;
+  --border: #484b53;
+  --accent: #7aa5ff;
+  --on-accent: #0b1020;
+  --slot-bg: #33363d;
+  --control-border: #7d808a;
+  --peg-border: #9a9da8;
+  --secret-bg: #636670;
+  --secret-fg: #ffffff;
+
+  --c-BYU: #0047BA;
+  --c-orange: #f79a1f;
+  --c-yellow: #f2c200;
+  --c-green: #34b455;
+  --c-blue: #7dafff;
+  --c-purple: #9000bc;
+
+  --c-red-fg: #111111;
+  --c-orange-fg: #111111;
+  --c-yellow-fg: #111111;
+  --c-green-fg: #111111;
+  --c-blue-fg: #111111;
+  --c-purple-fg: #111111;
+
+  /* Black = exact, white = color-only, as in light mode; the light ring keeps
+     the black peg visible on a dark surface. */
+  --fb-exact: #000000;
+  --fb-color: #ffffff;
+  --fb-empty: #50535c;
+  --fb-border: #a8abb5;
+}
+
+:root {
+  --slot-size: 44px;
+  --fb-size: 12px;
+  --slot-gap: 6px;
+  --fb-gap: 3px;
+  --controls-h: 140px; /* updated from script.js */
+}
+
+html { scroll-behavior: smooth; }
+
+/* Sizes per difficulty (script.js sets body[data-difficulty]).
+   Easy uses the defaults above. */
+body[data-difficulty="medium"] {
+  --slot-size: 40px;
+  --fb-size: 11px;
+}
+body[data-difficulty="hard"] {
+  --slot-size: 32px;
+  --fb-size: 10px;
+  --slot-gap: 4px;
+  --fb-gap: 2px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.app-header h1 { margin: 0; font-size: 1.4rem; }
+.header-actions { display: flex; gap: 8px; }
+
+/* Welcome screen (first visit). `display` below would override the hidden
+   attribute, so hidden is restored explicitly. */
+#app[hidden], .welcome[hidden] { display: none; }
+.welcome {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  text-align: center;
+}
+.welcome-card { max-width: 420px; }
+.welcome-card h1 { margin: 0 0 8px; font-size: 2rem; }
+.welcome-card p { margin: 0 0 20px; color: var(--muted); }
+.welcome-choices { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+/* Each choice previews its own theme, independent of the current one. */
+.theme-choice {
+  min-width: 140px;
+  padding: 16px 20px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  border-width: 2px;
+}
+.theme-choice-light { background: #ffffff; color: #1c1c1e; border-color: #c9c9cf; }
+.theme-choice-dark { background: #131417; color: #ececf0; border-color: #484b53; }
+
+.app-main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 0 16px 32px;
+}
+
+button {
+  font: inherit;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+button:focus-visible, .slot:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.toolbar label { font-weight: 600; }
+.toolbar select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+.toolbar select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.toolbar-info { color: var(--muted); font-size: 0.85rem; }
+
+.message { min-height: 1.5em; margin: 4px 0 12px; font-weight: 600; scroll-margin-top: 8px; }
+
+.status-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.status-actions { display: flex; gap: 8px; }
+.timer { color: var(--muted); font-variant-numeric: tabular-nums; }
+.timer span { color: var(--text); font-weight: 600; }
+
+/* Name prompt and leaderboard dialogs */
+.dialog {
+  width: min(92vw, 460px);
+  max-height: 86vh;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+.dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+.dialog h2 { margin: 0; font-size: 1.15rem; }
+.dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.dialog-text { color: var(--muted); margin: 8px 0; min-height: 1.2em; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; font-weight: 600; }
+.field input {
+  font: inherit;
+  font-weight: 400;
+  padding: 8px 10px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+.field input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* How-to-play dialog */
+.help-body { line-height: 1.45; }
+.help-body p { margin: 8px 0; }
+.help-body h3 { margin: 16px 0 6px; font-size: 1rem; }
+.help-body ol { margin: 8px 0; padding-left: 1.3rem; }
+.help-body li { margin: 4px 0; }
+.help-plain { list-style: none; margin: 8px 0; padding: 0; }
+.help-peg {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--fb-border);
+  vertical-align: -2px;
+}
+.help-peg.exact { background: var(--fb-exact); }
+.help-peg.color { background: var(--fb-color); }
+.help-colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px 12px; }
+.help-colors li { display: flex; align-items: center; gap: 8px; margin: 0; }
+.help-colors .slot { --slot-size: 28px; }
+
+.lb-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.lb-tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.lb-scroll { overflow-x: auto; max-height: 52vh; overflow-y: auto; }
+.lb-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.lb-table th, .lb-table td { padding: 6px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.lb-table th { color: var(--muted); font-weight: 600; }
+@media (max-width: 480px) {
+  .lb-table { font-size: 0.85rem; }
+  .lb-table th, .lb-table td { padding: 6px 4px; }
+  .col-date { display: none; }
+  .dialog { padding: 12px; }
+  /* Drop the shortcut hints so Undo / Clear / Hint / Submit fit on one row. */
+  .kbd-label { display: none; }
+}
+/* Newest entry: tinted row, bold text, accent bar and a "New" tag (not color alone). */
+.lb-table tr.newest td { background: var(--slot-bg); font-weight: 700; }
+.lb-table tr.newest td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.row { display: flex; align-items: center; gap: 8px; }
+.play-area { width: fit-content; max-width: 100%; margin: 0 auto; }
+.secret-wrap { margin-bottom: 12px; }
+/* Left-aligned with the same side padding + border as a board row (6px + 1px),
+   so the secret pegs sit exactly above the guess slots. */
+.secret-row { justify-content: flex-start; flex-wrap: nowrap; gap: var(--slot-gap); padding: 0 7px; }
+
+.board { display: flex; flex-direction: column; gap: 6px; }
+.board .row {
+  padding: 4px 6px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid transparent;
+  scroll-margin-top: 8px;
+  scroll-margin-bottom: calc(var(--controls-h) + 8px); /* clear the sticky controls */
+}
+.board .row.active { border-color: var(--accent); }
+
+.slots { display: flex; gap: var(--slot-gap); flex: 0 0 auto; flex-wrap: nowrap; }
+
+.slot {
+  width: var(--slot-size);
+  height: var(--slot-size);
+  flex: 0 0 auto;
+  border-radius: 50%;
+  border: 2px solid var(--control-border);
+  background: var(--slot-bg);
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--slot-size) * 0.5);
+  color: #fff;
+  line-height: 1;
+  padding: 0;
+}
+.slot.filled { border-color: var(--peg-border); }
+/* A peg revealed by a hint: fixed in place, marked with an extra ring (not just color). */
+.slot.locked { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+.slot.hidden-secret { background: var(--secret-bg); color: var(--secret-fg); border-color: var(--control-border); }
+.color-red { background: var(--c-BYU); color: var(--c-red-fg); }
+.color-orange { background: var(--c-orange); color: var(--c-orange-fg); }
+.color-yellow { background: var(--c-yellow); color: var(--c-yellow-fg); }
+.color-green { background: var(--c-green); color: var(--c-green-fg); }
+.color-blue { background: var(--c-blue); color: var(--c-blue-fg); }
+.color-purple { background: var(--c-purple); color: var(--c-purple-fg); }
+
+.feedback {
+  display: grid;
+  grid-template-columns: repeat(2, var(--fb-size));
+  gap: var(--fb-gap);
+  flex: 0 0 auto;
+}
+.fb {
+  width: var(--fb-size);
+  height: var(--fb-size);
+  border-radius: 50%;
+  background: var(--fb-empty);
+  border: 1px solid var(--fb-border);
+}
+.fb.exact { background: var(--fb-exact); }
+.fb.color { background: var(--fb-color); }
+
+.fb-text {
+  font-size: 0.75rem;
+  color: var(--muted);
+  min-width: 5.5em;
+  text-align: right;
+}
+
+/* Sticky so the palette and Submit stay reachable on tall boards (Hard = 20 rows). */
+.controls {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 16px;
+  padding: 12px 0 10px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.palette { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 12px; }
+.palette .slot { cursor: pointer; position: relative; --slot-size: 48px; }
+.palette .slot.selected { outline: 3px solid var(--text); outline-offset: 2px; }
+/* Keyboard focus on a selected peg: accent ring outside the text-colored selection ring. */
+.palette .slot:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.palette .slot.selected:focus-visible { outline: 3px solid var(--text); box-shadow: 0 0 0 6px var(--accent); }
+.palette .key-hint {
+  position: absolute;
+  bottom: -6px;
+  right: -4px;
+  font-size: 0.65rem;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+.buttons { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+.stats { margin-top: 24px; }
+.stats h2 { font-size: 1rem; margin: 0 0 8px; }
+.stats dl { display: grid; grid-template-columns: auto auto; gap: 4px 16px; margin: 0; max-width: 260px; }
+.stats dt { color: var(--muted); }
+.stats dd { margin: 0; font-weight: 600; text-align: right; }
+
+@media (max-width: 480px) {
+  :root { --slot-size: 40px; }
+
+  /* 10 pegs must fit in the width left after padding, the feedback grid and gaps
+     (about 110px), so size the slots from the viewport width. */
+  body[data-difficulty="hard"] {
+    --slot-size: clamp(20px, calc((100vw - 110px) / 10), 26px);
+    --fb-size: 8px;
+  }
+
+  /* No room for the "N exact, N color" text on Medium/Hard; keep it for screen readers. */
+  body[data-difficulty="medium"] .fb-text,
+  body[data-difficulty="hard"] .fb-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-width: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  /* Smaller controls so the sticky bar doesn't take too much of the screen. */
+  .palette { margin-bottom: 8px; }
+  .palette .slot { --slot-size: 40px; }
+  .buttons button { padding: 6px 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; animation: none !important; }
+}
