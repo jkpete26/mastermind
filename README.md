@@ -19,6 +19,7 @@ Open `index.html` in a browser. That's it.
 ## Features
 
 - Three difficulties: Easy (4 pegs), Medium (6), Hard (10), with a separate leaderboard and stats for each
+- Play against the computer or choose Two players, where Player 1 sets the code and enters feedback that the computer checks after each Player 2 guess
 - Click a color then a slot, or use keys 1-6, Backspace (undo) and Enter (submit)
 - Black and white feedback pegs, plus the same counts written out
 - Hints that reveal and lock one correct peg (Easy 1, Medium 2, Hard 3)

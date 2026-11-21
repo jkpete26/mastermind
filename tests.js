@@ -9,6 +9,7 @@
 const assert = require("assert");
 const {
   COLORS, DIFFICULTIES, generateSecret, score,
+  countFeedbackPegs, feedbackMatches,
   compareEntries, insertEntry, formatTime, cleanName, sanitizeEntries,
   pickHintSlot, freshRow
 } = require("./script.js");
@@ -51,6 +52,31 @@ test("guess repeats a color the secret has once", function () { check("RGBY", "R
 test("secret repeats a color, guess has it once", function () { check("RRRR", "RGGG", 1, 0); });
 test("repeats are only counted as often as the secret has them", function () { check("RGGG", "GRRR", 0, 2); });
 test("mix of exact and color-only with repeats", function () { check("RRGB", "GRRR", 1, 2); });
+
+console.log("two-player feedback checks");
+
+test("manual black and white pegs match a guess with repeated colors", function () {
+  const secret = code("RRBG");
+  const guess = code("RRRB");
+  const feedback = ["exact", "exact", "color", null];
+  assert.deepStrictEqual(countFeedbackPegs(feedback), { exact: 2, colorOnly: 1 });
+  assert.strictEqual(feedbackMatches(secret, guess, feedback), true);
+});
+
+test("manual feedback accepts all-white pegs when every color is in the wrong slot", function () {
+  assert.strictEqual(feedbackMatches(code("RGBY"), code("GBYR"), ["color", "color", "color", "color"]), true);
+});
+
+test("manual feedback rejects incorrect black and white counts", function () {
+  assert.strictEqual(feedbackMatches(code("RRBG"), code("RRRB"), ["exact", "color", "color", null]), false);
+});
+
+test("manual feedback rejects too many pegs and invalid peg values", function () {
+  const secret = code("RGBY");
+  const guess = code("RGBY");
+  assert.strictEqual(feedbackMatches(secret, guess, ["exact", "exact", "exact"]), false);
+  assert.strictEqual(feedbackMatches(secret, guess, ["exact", "exact", "exact", "blue"]), false);
+});
 
 console.log("score: 6 and 10 peg codes");
 

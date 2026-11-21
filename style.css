@@ -123,6 +123,7 @@ body {
 /* Welcome screen (first visit). `display` below would override the hidden
    attribute, so hidden is restored explicitly. */
 #app[hidden], .welcome[hidden] { display: none; }
+[hidden] { display: none !important; }
 .welcome {
   min-height: 100vh;
   min-height: 100dvh;
@@ -190,6 +191,7 @@ button:focus-visible, .slot:focus-visible { outline: 3px solid var(--accent); ou
 .dialog {
   width: min(92vw, 460px);
   max-height: 86vh;
+  overflow-y: auto;
   padding: 16px;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -311,6 +313,20 @@ button:focus-visible, .slot:focus-visible { outline: 3px solid var(--accent); ou
   grid-template-columns: repeat(2, var(--fb-size));
   gap: var(--fb-gap);
   flex: 0 0 auto;
+}
+.feedback-entry {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 8px;
+}
+.feedback-secret { justify-content: center; margin: 8px 0 16px; }
+.fb-button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  cursor: pointer;
 }
 .fb {
   width: var(--fb-size);

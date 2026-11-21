@@ -42,6 +42,11 @@
 
     <main class="app-main">
       <div class="toolbar">
+        <label for="game-mode">Mode</label>
+        <select id="game-mode">
+          <option value="computer">Play vs. computer</option>
+          <option value="two-player">Two players</option>
+        </select>
         <label for="difficulty">Difficulty</label>
         <select id="difficulty"></select>
         <span id="difficulty-info" class="toolbar-info"></span>
@@ -86,13 +91,48 @@
     </main>
   </div>
 
+  <dialog id="handoff-dialog" class="dialog" aria-labelledby="handoff-title">
+    <h2 id="handoff-title">Pass the device to Player 2</h2>
+    <p class="dialog-text">Player 1 has set the code. Make sure Player 1 has looked away before Player 2 starts guessing.</p>
+    <div class="dialog-actions">
+      <button id="start-player-two" type="button" class="primary">Player 2, start guessing</button>
+    </div>
+  </dialog>
+
+  <dialog id="feedback-handoff-dialog" class="dialog" aria-labelledby="feedback-handoff-title">
+    <h2 id="feedback-handoff-title">Pass the device to Player 1</h2>
+    <p class="dialog-text">Player 2 has made a guess. Player 1 should enter the black and white feedback pegs.</p>
+    <div class="dialog-actions">
+      <button id="enter-feedback" type="button" class="primary">Player 1, enter feedback</button>
+    </div>
+  </dialog>
+
+  <dialog id="feedback-dialog" class="dialog" aria-labelledby="feedback-title">
+    <h2 id="feedback-title">Enter feedback</h2>
+    <p class="dialog-text">For Player 2&rsquo;s latest guess, click each peg to cycle through empty, black, and white. Leave unmatched pegs empty.</p>
+    <p class="dialog-text">Secret code:</p>
+    <div id="feedback-secret" class="row feedback-secret" aria-label="Secret code"></div>
+    <p class="dialog-text">Player 2&rsquo;s guess:</p>
+    <div id="feedback-guess" class="row feedback-secret" aria-label="Player 2's guess"></div>
+    <ul class="help-plain help-colors">
+      <li><span class="help-peg exact" aria-hidden="true"></span>Black: right color, right slot</li>
+      <li><span class="help-peg color" aria-hidden="true"></span>White: right color, wrong slot</li>
+    </ul>
+    <div id="feedback-entry" class="feedback-entry" role="group" aria-label="Enter feedback pegs"></div>
+    <p id="feedback-count" class="dialog-text" aria-live="polite"></p>
+    <p id="feedback-error" class="dialog-text" role="status" aria-live="polite"></p>
+    <div class="dialog-actions">
+      <button id="check-feedback" type="button" class="primary">Check feedback</button>
+    </div>
+  </dialog>
+
   <dialog id="help-dialog" class="dialog" aria-labelledby="help-title">
     <div class="dialog-head">
       <h2 id="help-title">How to play</h2>
       <button id="help-close" type="button">Close</button>
     </div>
     <div class="help-body">
-      <p>The computer hides a secret code of colored pegs. Work out the code before you run out of guesses. A color can appear more than once.</p>
+      <p>Choose Play vs. computer or Two players. In two player mode, Player 1 sets a secret code, then passes the device to Player 2 to guess it. A color can appear more than once.</p>
 
       <h3>Making a guess</h3>
       <ol>
@@ -114,6 +154,9 @@
 
       <h3>Difficulty</h3>
       <ul id="help-levels" class="help-plain"></ul>
+
+      <h3>Two players</h3>
+      <p>Player 1 selects a color and fills every code slot, then chooses Set code &amp; pass to Player 2. After each guess, Player 1 enters the black and white feedback pegs. The computer checks that feedback against the secret code before showing it to Player 2.</p>
 
       <h3>Hints</h3>
       <p>A hint fills one slot in your current row with the correct color and locks it. That peg stays in place on later guesses. A hint never reveals the whole code.</p>
