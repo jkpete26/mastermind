@@ -66,6 +66,26 @@ function score(secret, guess) {
   return { exact, colorOnly };
 }
 
+/** Counts manually entered feedback pegs: exact = black, color = white. */
+function countFeedbackPegs(feedbackPegs) {
+  return {
+    exact: feedbackPegs.filter(function (peg) { return peg === "exact"; }).length,
+    colorOnly: feedbackPegs.filter(function (peg) { return peg === "color"; }).length
+  };
+}
+
+/** Checks that Player 1's black and white peg counts match the secret and guess. */
+function feedbackMatches(secret, guess, feedbackPegs) {
+  if (!Array.isArray(secret) || !Array.isArray(guess) || !Array.isArray(feedbackPegs) ||
+      secret.length !== guess.length || secret.length !== feedbackPegs.length ||
+      feedbackPegs.some(function (peg) { return peg !== null && peg !== "exact" && peg !== "color"; })) {
+    return false;
+  }
+  const entered = countFeedbackPegs(feedbackPegs);
+  const expected = score(secret, guess);
+  return entered.exact === expected.exact && entered.colorOnly === expected.colorOnly;
+}
+
 /**
  * Leaderboard order: fewest guesses, then fewest hints, then fastest time.
  * If everything ties, the earlier entry stays ahead.
@@ -300,9 +320,14 @@ const state = {
   hintsUsed: 0,     // hints spent this game; saved with a leaderboard score
   locked: [],       // locked[i] is true once a hint has revealed slot i (kept for later rows)
   notice: "",       // short message after a hint, announced to screen readers
+  mode: "computer", // "computer" | "two-player"
+  phase: "playing", // "setup" | "handoff" | "playing" | "feedback-handoff" | "feedback"
   difficulty: DEFAULT_DIFFICULTY,
   secret: [],
   guesses: [],      // [{ pegs: [...], exact, colorOnly }]
+  pendingGuess: null,
+  feedbackPegs: [],
+  feedbackError: "",
   current: [],      // array of color index or null, length = pegs
   selected: null,   // selected palette color index
   status: "playing" // "playing" | "won" | "lost"
@@ -312,9 +337,11 @@ function config() {
   return DIFFICULTIES[state.difficulty];
 }
 
-/** A game counts as "in progress" once at least one guess has been submitted. */
+/** A game counts as in progress once setup starts or the first guess is submitted. */
 function gameInProgress() {
-  return state.status === "playing" && state.guesses.length > 0;
+  return state.status === "playing" &&
+    (state.guesses.length > 0 || state.phase === "handoff" ||
+      (state.mode === "two-player" && (state.phase === "playing" || state.secret.some(function (color) { return color !== null; }))));
 }
 
 /* Timer: starts on the first peg placed, stops on a win or loss. It stores
@@ -355,13 +382,20 @@ function resetTimer() {
 
 function newGame() {
   const cfg = config();
+  if (el.handoffDialog && el.handoffDialog.open) el.handoffDialog.close();
+  if (el.feedbackHandoffDialog && el.feedbackHandoffDialog.open) el.feedbackHandoffDialog.close();
+  if (el.feedbackDialog && el.feedbackDialog.open) el.feedbackDialog.close();
   resetTimer();
   state.hintsUsed = 0;
-  state.secret = generateSecret(cfg.pegs);
+  state.phase = state.mode === "two-player" ? "setup" : "playing";
+  state.secret = state.mode === "two-player" ? new Array(cfg.pegs).fill(null) : generateSecret(cfg.pegs);
   state.guesses = [];
+  state.pendingGuess = null;
+  state.feedbackPegs = [];
+  state.feedbackError = "";
   state.locked = new Array(cfg.pegs).fill(false);
   state.notice = "";
-  state.current = freshRow(state.secret, state.locked);
+  state.current = state.phase === "setup" ? new Array(cfg.pegs).fill(null) : freshRow(state.secret, state.locked);
   state.selected = null;
   state.status = "playing";
   render();
@@ -377,6 +411,14 @@ function placeColor(slotIndex, colorIndex) {
 }
 
 function placeInFirstEmpty(colorIndex) {
+  if (state.phase === "setup") {
+    const i = state.secret.indexOf(null);
+    if (i !== -1) {
+      state.secret[i] = colorIndex;
+      render();
+    }
+    return;
+  }
   const i = state.current.indexOf(null);
   if (i !== -1) placeColor(i, colorIndex);
 }
@@ -384,6 +426,16 @@ function placeInFirstEmpty(colorIndex) {
 function undo() {
   if (state.status !== "playing") return;
   state.notice = "";
+  if (state.phase === "setup") {
+    for (let i = state.secret.length - 1; i >= 0; i--) {
+      if (state.secret[i] !== null) {
+        state.secret[i] = null;
+        break;
+      }
+    }
+    render();
+    return;
+  }
   for (let i = state.current.length - 1; i >= 0; i--) {
     if (state.current[i] !== null && !state.locked[i]) {
       state.current[i] = null;
@@ -396,6 +448,11 @@ function undo() {
 function clearRow() {
   if (state.status !== "playing") return;
   state.notice = "";
+  if (state.phase === "setup") {
+    state.secret = new Array(config().pegs).fill(null);
+    render();
+    return;
+  }
   state.current = freshRow(state.secret, state.locked); // keeps hint-revealed pegs
   render();
 }
@@ -406,7 +463,7 @@ function hintsLeft() {
 
 /** Spends a hint: reveals and locks one correct slot in the current row. */
 function useHint() {
-  if (state.status !== "playing" || hintsLeft() <= 0) return;
+  if (state.status !== "playing" || state.phase !== "playing" || hintsLeft() <= 0) return;
   const i = pickHintSlot(state.secret, state.current, state.locked);
   if (i === -1) return;
   startTimer(); // a hint places a peg, so it starts the clock like any other
@@ -419,10 +476,32 @@ function useHint() {
 
 function submit() {
   if (state.status !== "playing") return;
+  if (state.phase === "setup") {
+    if (state.secret.includes(null)) return;
+    state.phase = "handoff";
+    state.notice = "";
+    render();
+    el.handoffDialog.showModal();
+    return;
+  }
+  if (state.phase !== "playing") return;
   if (state.current.includes(null)) return;
 
   const pegs = state.current.slice();
-  const result = score(state.secret, pegs);
+  if (state.mode === "two-player") {
+    state.pendingGuess = pegs;
+    state.feedbackPegs = new Array(config().pegs).fill(null);
+    state.feedbackError = "";
+    state.phase = "feedback-handoff";
+    render();
+    el.feedbackHandoffDialog.showModal();
+    return;
+  }
+  completeGuess(pegs, score(state.secret, pegs));
+}
+
+/** Adds an accepted guess and applies the normal win/loss rules. */
+function completeGuess(pegs, result) {
   state.guesses.push({ pegs, exact: result.exact, colorOnly: result.colorOnly });
 
   const cfg = config();
@@ -444,6 +523,66 @@ function submit() {
     el.message.scrollIntoView({ block: "start" });
   }
   if (state.status === "won") openNameDialog();
+}
+
+function updateFeedbackCount() {
+  const counts = countFeedbackPegs(state.feedbackPegs);
+  el.feedbackCount.textContent = counts.exact + " black, " + counts.colorOnly + " white";
+}
+
+function renderFeedbackEntry() {
+  el.feedbackSecret.textContent = "";
+  el.feedbackGuess.textContent = "";
+  if (state.phase === "feedback") {
+    state.secret.forEach(function (color) { el.feedbackSecret.appendChild(makePeg(color)); });
+    state.pendingGuess.forEach(function (color) { el.feedbackGuess.appendChild(makePeg(color)); });
+  }
+  el.feedbackError.textContent = state.feedbackError;
+  el.feedbackEntry.textContent = "";
+  state.feedbackPegs.forEach(function (kind, i) {
+    const peg = document.createElement("button");
+    peg.type = "button";
+    peg.className = "fb fb-button";
+    if (kind) peg.classList.add(kind);
+    peg.setAttribute("aria-pressed", String(kind !== null));
+    peg.setAttribute("aria-label", "Feedback peg " + (i + 1) + ": " + (kind === "exact" ? "black" : kind === "color" ? "white" : "empty") + ". Click to change.");
+    peg.title = kind === "exact" ? "Black peg" : kind === "color" ? "White peg" : "Empty";
+    peg.addEventListener("click", function () {
+      state.feedbackPegs[i] = kind === null ? "exact" : kind === "exact" ? "color" : null;
+      renderFeedbackEntry();
+      updateFeedbackCount();
+      el.feedbackEntry.children[i].focus();
+    });
+    el.feedbackEntry.appendChild(peg);
+  });
+  updateFeedbackCount();
+}
+
+function startFeedbackEntry() {
+  if (state.phase !== "feedback-handoff") return;
+  el.feedbackHandoffDialog.close();
+  state.phase = "feedback";
+  state.feedbackError = "";
+  render();
+  el.feedbackDialog.showModal();
+}
+
+function checkFeedback() {
+  if (state.phase !== "feedback" || !state.pendingGuess) return;
+  if (!feedbackMatches(state.secret, state.pendingGuess, state.feedbackPegs)) {
+    state.feedbackError = "That feedback doesn’t match the secret code. Correct it and check again.";
+    el.feedbackError.textContent = state.feedbackError;
+    return;
+  }
+
+  const entered = countFeedbackPegs(state.feedbackPegs);
+  const guess = state.pendingGuess;
+  state.pendingGuess = null;
+  state.feedbackPegs = [];
+  state.feedbackError = "";
+  el.feedbackDialog.close();
+  state.phase = "playing";
+  completeGuess(guess, entered);
 }
 
 /* ==========================================================
@@ -476,6 +615,7 @@ const el = typeof document === "undefined" ? {} : {
   helpColors: document.getElementById("help-colors"),
   helpLevels: document.getElementById("help-levels"),
   nameDialog: document.getElementById("name-dialog"),
+  nameTitle: document.getElementById("name-title"),
   nameForm: document.getElementById("name-form"),
   nameSummary: document.getElementById("name-summary"),
   nameInput: document.getElementById("player-name"),
@@ -487,7 +627,19 @@ const el = typeof document === "undefined" ? {} : {
   lbBody: document.getElementById("lb-body"),
   lbEmpty: document.getElementById("lb-empty"),
   lbReset: document.getElementById("lb-reset"),
-  lbClose: document.getElementById("lb-close")
+  lbClose: document.getElementById("lb-close"),
+  gameMode: document.getElementById("game-mode"),
+  handoffDialog: document.getElementById("handoff-dialog"),
+  startPlayerTwo: document.getElementById("start-player-two"),
+  feedbackHandoffDialog: document.getElementById("feedback-handoff-dialog"),
+  enterFeedback: document.getElementById("enter-feedback"),
+  feedbackDialog: document.getElementById("feedback-dialog"),
+  feedbackSecret: document.getElementById("feedback-secret"),
+  feedbackGuess: document.getElementById("feedback-guess"),
+  feedbackEntry: document.getElementById("feedback-entry"),
+  feedbackCount: document.getElementById("feedback-count"),
+  feedbackError: document.getElementById("feedback-error"),
+  checkFeedback: document.getElementById("check-feedback")
 };
 
 function makePeg(colorIndex, tag) {
@@ -597,9 +749,16 @@ function renderPalette() {
 function renderSecret() {
   const cfg = config();
   el.secret.textContent = "";
+  const setup = state.phase === "setup";
   const reveal = state.status !== "playing";
   for (let i = 0; i < cfg.pegs; i++) {
-    if (reveal) {
+    if (setup) {
+      const slot = makePeg(state.secret[i], "button");
+      slot.type = "button";
+      slot.setAttribute("aria-label", (state.secret[i] === null ? "Empty" : COLORS[state.secret[i]].name) + ", code slot " + (i + 1));
+      slot.addEventListener("click", function () { onSlotClick(i); });
+      el.secret.appendChild(slot);
+    } else if (reveal) {
       el.secret.appendChild(makePeg(state.secret[i]));
     } else {
       const hidden = makePeg(null);
@@ -613,11 +772,23 @@ function renderSecret() {
 
 function renderMessage() {
   const cfg = config();
+  if (state.phase === "setup") {
+    el.message.textContent = "Player 1: choose a secret code, then pass the device to Player 2.";
+    return;
+  }
+  if (state.phase === "handoff") {
+    el.message.textContent = "Secret code set. Pass the device to Player 2.";
+    return;
+  }
+  if (state.phase === "feedback-handoff" || state.phase === "feedback") {
+    el.message.textContent = "Pass the device to Player 1 to enter feedback.";
+    return;
+  }
   if (state.status === "won") {
-    el.message.textContent = "You cracked the code in " + state.guesses.length +
+    el.message.textContent = (state.mode === "two-player" ? "Player 2 cracked the code in " : "You cracked the code in ") + state.guesses.length +
       (state.guesses.length === 1 ? " guess!" : " guesses!");
   } else if (state.status === "lost") {
-    el.message.textContent = "Out of guesses. The secret code is revealed above.";
+    el.message.textContent = (state.mode === "two-player" ? "Player 2 ran out of guesses. " : "Out of guesses. ") + "The secret code is revealed above.";
   } else {
     const left = cfg.guesses - state.guesses.length;
     el.message.textContent = (state.notice ? state.notice + " " : "") +
@@ -650,16 +821,23 @@ function renderStats() {
 
 function renderControls() {
   const playing = state.status === "playing";
+  const setup = state.phase === "setup";
+  const notGuessing = state.phase !== "playing" && !setup;
   // Hint-revealed pegs are locked, so only the player's own pegs count here.
   const hasAny = state.current.some(function (c, i) { return c !== null && !state.locked[i]; });
-  el.undo.disabled = !playing || !hasAny;
-  el.clear.disabled = !playing || !hasAny;
-  el.submit.disabled = !playing || state.current.includes(null);
+  const hasSetupCode = state.secret.some(function (c) { return c !== null; });
+  el.controls.hidden = notGuessing;
+  el.board.hidden = setup || notGuessing;
+  el.undo.disabled = !playing || (setup ? !hasSetupCode : !hasAny);
+  el.clear.disabled = !playing || (setup ? !hasSetupCode : !hasAny);
+  el.submit.disabled = !playing || (setup ? state.secret.includes(null) : state.current.includes(null));
+  el.submit.firstChild.nodeValue = setup ? "Set code & pass to Player 2" : "Submit";
 
   const left = hintsLeft();
   el.hint.textContent = "Hint (" + left + ")";
   el.hint.setAttribute("aria-label", "Hint, " + left + (left === 1 ? " hint" : " hints") + " left");
-  el.hint.disabled = !playing || left <= 0;
+  el.hint.hidden = setup;
+  el.hint.disabled = !playing || setup || left <= 0;
 }
 
 function buildDifficultyOptions() {
@@ -677,6 +855,7 @@ function renderDifficulty() {
   document.body.dataset.difficulty = state.difficulty; // drives size variables in CSS
   el.difficulty.value = state.difficulty;
   el.difficultyInfo.textContent = cfg.pegs + " pegs \u00B7 " + cfg.guesses + " guesses";
+  el.gameMode.value = state.mode;
 }
 
 /** Keeps the sticky controls from covering the active row (see scroll-margin in CSS). */
@@ -764,6 +943,7 @@ function openNameDialog() {
     summary += " with " + pendingEntry.hints + (pendingEntry.hints === 1 ? " hint" : " hints");
   }
   el.nameSummary.textContent = summary + ".";
+  el.nameTitle.textContent = state.mode === "two-player" ? "Player 2 cracked the code!" : "You cracked the code!";
   el.nameInput.value = loadName();
   el.nameDialog.showModal();
   el.nameInput.focus();
@@ -845,6 +1025,7 @@ function render() {
   renderMessage();
   renderStats();
   renderControls();
+  renderFeedbackEntry();
   updateControlsHeight();
   scrollActiveRowIntoView();
 }
@@ -855,6 +1036,13 @@ function render() {
 
 function onSlotClick(slotIndex) {
   if (state.status !== "playing") return;
+  if (state.phase === "setup") {
+    if (state.selected !== null) state.secret[slotIndex] = state.selected;
+    else state.secret[slotIndex] = null;
+    render();
+    return;
+  }
+  if (state.phase !== "playing") return;
   if (state.locked[slotIndex]) return;
   if (state.selected !== null) {
     placeColor(slotIndex, state.selected);
@@ -871,8 +1059,8 @@ function bindEvents() {
     // (otherwise Backspace would be blocked while typing a name).
     if (el.app.hidden) return;
     if (document.querySelector("dialog[open]")) return;
-    // Don't hijack keys while the difficulty dropdown has focus.
-    if (document.activeElement === el.difficulty) return;
+    // Don't hijack keys while a select menu has focus.
+    if (document.activeElement === el.difficulty || document.activeElement === el.gameMode) return;
     if (e.key >= "1" && e.key <= String(COLORS.length)) {
       placeInFirstEmpty(Number(e.key) - 1);
     } else if (e.key === "Backspace") {
@@ -914,6 +1102,31 @@ function bindEvents() {
     newGame();
     el.difficulty.blur(); // so the 1-6 / Enter shortcuts work right away
   });
+
+  el.gameMode.addEventListener("change", function () {
+    const next = el.gameMode.value;
+    if (next === state.mode) return;
+    if (gameInProgress() && !window.confirm("Switch modes? Your current game will be abandoned.")) {
+      el.gameMode.value = state.mode;
+      return;
+    }
+    state.mode = next;
+    newGame();
+  });
+
+  el.startPlayerTwo.addEventListener("click", function () {
+    if (state.phase !== "handoff") return;
+    el.handoffDialog.close();
+    state.phase = "playing";
+    state.current = freshRow(state.secret, state.locked);
+    state.selected = null;
+    render();
+  });
+  el.handoffDialog.addEventListener("cancel", function (e) { e.preventDefault(); });
+  el.enterFeedback.addEventListener("click", startFeedbackEntry);
+  el.feedbackHandoffDialog.addEventListener("cancel", function (e) { e.preventDefault(); });
+  el.checkFeedback.addEventListener("click", checkFeedback);
+  el.feedbackDialog.addEventListener("cancel", function (e) { e.preventDefault(); });
 
   el.welcome.querySelectorAll("[data-theme-choice]").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -979,6 +1192,7 @@ function bindEvents() {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     COLORS, DIFFICULTIES, generateSecret, score,
+    countFeedbackPegs, feedbackMatches,
     compareEntries, insertEntry, formatTime, cleanName, sanitizeEntries,
     pickHintSlot, freshRow
   };
